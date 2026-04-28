@@ -5,39 +5,56 @@ import Review from "../models/Review.js";
 
 dotenv.config();
 
-mongoose.connect(process.env.MONGO_URI);
+await mongoose.connect(process.env.MONGO_URI);
 
 const reviews = [
-    {
-        hotelId: "69e863e29bb822a928e599be",
-        text: "The WiFi was super fast and reliable",
-        reviewerName: "Ankaksha",
-        rating: 5
-    },
-    {
-        hotelId: "69e863e29bb822a928e599be",
-        text: "Rooms were dirty and noisy",
-        reviewerName: "Rahul",
-        rating: 2
-    }
+  {
+    hotelId: "69e863e29bb822a928e599be",
+    text: "The WiFi was super fast and reliable",
+    reviewerName: "Ankaksha",
+    rating: 5,
+  },
+  {
+    hotelId: "69e863e29bb822a928e599be",
+    text: "Rooms were dirty and noisy",
+    reviewerName: "Rahul",
+    rating: 2,
+  },
 ];
 
-const seed = async () => {
-    for (let r of reviews) {
-        const res = await axios.post("http://localhost:5001/embed", {
-            text: r.text
-        });
+const seedReviews = async () => {
+  try {
+    console.log("🌱 Starting review seeding...\n");
 
-        await Review.create({
-            ...r,
-            embeddings: res.data.embedding,
-            sentiment: r.rating > 3 ? 1 : -1,
-            reviewDate: new Date()
-        });
+    for (const review of reviews) {
+      console.log(`Processing: "${review.text}"`);
+
+      const response = await axios.post(
+        `${process.env.PYTHON_API_URL}/embed`,
+        {
+          text: review.text,
+        }
+      );
+
+      await Review.create({
+        ...review,
+        embeddings: response.data.embedding,
+        sentiment: review.rating >= 4 ? 1 : -1,
+        reviewDate: new Date(),
+      });
+
+      console.log("✅ Review inserted successfully\n");
     }
 
-    console.log("Seeded!");
-    process.exit();
+    console.log("🎉 All reviews seeded successfully!");
+    process.exit(0);
+  } catch (error) {
+    console.error(
+      "❌ Error seeding reviews:",
+      error.response?.data || error.message
+    );
+    process.exit(1);
+  }
 };
 
-seed();
+seedReviews();
