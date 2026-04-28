@@ -9,41 +9,50 @@ router.post("/", protect, async (req, res) => {
   try {
     const { hotelId, rating, text } = req.body;
 
-    if (!hotelId || !rating || !text) {
+    // Validation
+    if (!hotelId || !rating || !text?.trim()) {
       return res.status(400).json({
         msg: "Hotel ID, rating, and review text are required",
       });
     }
 
-    // Generate embedding
+    // Generate embedding using deployed AI service
     const embedRes = await axios.post(
-      "http://localhost:5001/embed",
-      { text }
+      `${process.env.PYTHON_API_URL}/embed`,
+      {
+        text: text.trim(),
+      }
     );
 
     const embedding = embedRes.data.embedding;
 
+    // Save review
     const newReview = new Review({
       hotelId,
       userId: req.user.id,
       reviewname: req.user.name || "Anonymous",
-      rating,
-      text,
+      rating: Number(rating),
+      text: text.trim(),
       embeddings: embedding,
       reviewDate: new Date(),
     });
 
     await newReview.save();
 
+    // Populate user details
     const populatedReview = await Review.findById(newReview._id)
       .populate("userId", "name email");
 
     res.status(201).json(populatedReview);
   } catch (err) {
-    console.error("Review Creation Error:", err);
+    console.error(
+      "Review Creation Error:",
+      err.response?.data || err.message
+    );
+
     res.status(500).json({
       msg: "Failed to create review",
-      error: err.message,
+      error: err.response?.data || err.message,
     });
   }
 });
